@@ -1,0 +1,11 @@
+# Go
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+Thumbs.db
+Desktop.ini
+*.out
+coverage.txt
