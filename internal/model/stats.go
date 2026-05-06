@@ -74,3 +74,15 @@ func ComputeSummary(stats map[string]*JobStats) SummaryStats {
 
 	return summary
 }
+
+// FilterByFailureRate returns only the jobs whose failure rate is at or above
+// the given threshold (0–100). Useful for surfacing problematic jobs.
+func FilterByFailureRate(stats map[string]*JobStats, threshold float64) []*JobStats {
+	var result []*JobStats
+	for _, s := range stats {
+		if s.FailureRate >= threshold {
+			result = append(result, s)
+		}
+	}
+	return result
+}
