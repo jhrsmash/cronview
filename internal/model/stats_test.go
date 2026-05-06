@@ -44,6 +44,13 @@ func TestComputeJobStats_LastStatus(t *testing.T) {
 	}
 }
 
+func TestComputeJobStats_LastStatus_Cleanup(t *testing.T) {
+	stats := ComputeJobStats(sampleEntries())
+	if stats["cleanup"].LastStatus != string(StatusSuccess) {
+		t.Errorf("expected last status success for cleanup, got %s", stats["cleanup"].LastStatus)
+	}
+}
+
 func TestComputeSummary_MostFailing(t *testing.T) {
 	stats := ComputeJobStats(sampleEntries())
 	summary := ComputeSummary(stats)
@@ -70,5 +77,19 @@ func TestComputeJobStats_Empty(t *testing.T) {
 	stats := ComputeJobStats([]JobEntry{})
 	if len(stats) != 0 {
 		t.Errorf("expected empty stats map, got %d entries", len(stats))
+	}
+}
+
+func TestComputeSummary_Empty(t *testing.T) {
+	stats := ComputeJobStats([]JobEntry{})
+	summary := ComputeSummary(stats)
+	if summary.TotalJobs != 0 {
+		t.Errorf("expected 0 total jobs, got %d", summary.TotalJobs)
+	}
+	if summary.TotalRuns != 0 {
+		t.Errorf("expected 0 total runs, got %d", summary.TotalRuns)
+	}
+	if summary.MostFailing != "" {
+		t.Errorf("expected empty most failing job, got %s", summary.MostFailing)
 	}
 }
