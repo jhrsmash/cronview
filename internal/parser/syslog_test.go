@@ -81,3 +81,25 @@ Jan  2 15:04:06 myhost CRON[1]: (root) CMD (/bin/true)
 		t.Errorf("expected 1 cron entry, got %d", len(entries))
 	}
 }
+
+func TestParseSyslog_PID(t *testing.T) {
+	entries, _ := ParseSyslog(strings.NewReader(sampleLog))
+
+	tests := []struct {
+		index   int
+		wantPID string
+	}{
+		{0, "1234"},
+		{1, "1234"},
+		{2, "5678"},
+		{3, "5678"},
+		{4, "9999"},
+	}
+
+	for _, tt := range tests {
+		got := entries[tt.index].PID
+		if got != tt.wantPID {
+			t.Errorf("entry[%d]: expected PID %q, got %q", tt.index, tt.wantPID, got)
+		}
+	}
+}
