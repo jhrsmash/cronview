@@ -41,15 +41,7 @@ func NewJSONExporter(w io.Writer) *JSONExporter {
 func (e *JSONExporter) Write(stats []model.JobStats) error {
 	records := make([]jsonRecord, 0, len(stats))
 	for _, s := range stats {
-		records = append(records, jsonRecord{
-			JobName:     s.JobName,
-			Hostname:    s.Hostname,
-			TotalRuns:   s.TotalRuns,
-			Failures:    s.Failures,
-			FailureRate: roundRate(s.FailureRate),
-			LastStatus:  s.LastStatus,
-			LastSeen:    s.LastSeen.Format(time.RFC3339),
-		})
+		records = append(records, jobStatsToRecord(s))
 	}
 
 	out := jsonOutput{
@@ -64,6 +56,20 @@ func (e *JSONExporter) Write(stats []model.JobStats) error {
 		return fmt.Errorf("json export: %w", err)
 	}
 	return nil
+}
+
+// jobStatsToRecord converts a model.JobStats value into its JSON-serializable
+// representation, formatting timestamps and rounding the failure rate.
+func jobStatsToRecord(s model.JobStats) jsonRecord {
+	return jsonRecord{
+		JobName:     s.JobName,
+		Hostname:    s.Hostname,
+		TotalRuns:   s.TotalRuns,
+		Failures:    s.Failures,
+		FailureRate: roundRate(s.FailureRate),
+		LastStatus:  s.LastStatus,
+		LastSeen:    s.LastSeen.Format(time.RFC3339),
+	}
 }
 
 // roundRate rounds a failure rate to two decimal places.
