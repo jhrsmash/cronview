@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 )
@@ -44,6 +45,27 @@ func Default() Config {
 			Path:    "cronview_export.txt",
 		},
 	}
+}
+
+// Validate checks that the configuration values are logically consistent.
+// It returns an error describing the first invalid field encountered.
+func (c Config) Validate() error {
+	if c.RefreshRate <= 0 {
+		return fmt.Errorf("config: refresh_rate must be positive, got %v", c.RefreshRate)
+	}
+	if c.Alert.WarnThreshold < 0 || c.Alert.WarnThreshold > 1 {
+		return fmt.Errorf("config: warn_threshold must be between 0 and 1, got %v", c.Alert.WarnThreshold)
+	}
+	if c.Alert.CriticalThreshold < 0 || c.Alert.CriticalThreshold > 1 {
+		return fmt.Errorf("config: critical_threshold must be between 0 and 1, got %v", c.Alert.CriticalThreshold)
+	}
+	if c.Alert.WarnThreshold > c.Alert.CriticalThreshold {
+		return fmt.Errorf("config: warn_threshold (%v) must not exceed critical_threshold (%v)", c.Alert.WarnThreshold, c.Alert.CriticalThreshold)
+	}
+	if c.Alert.MinRuns < 0 {
+		return fmt.Errorf("config: min_runs must be non-negative, got %d", c.Alert.MinRuns)
+	}
+	return nil
 }
 
 // Load reads a JSON config file from path. Missing fields retain defaults.
