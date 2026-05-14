@@ -28,6 +28,11 @@ func ParseFormat(s string) (Format, error) {
 	}
 }
 
+// SupportedFormats returns a slice of all supported export format strings.
+func SupportedFormats() []string {
+	return []string{string(FormatCSV), string(FormatText)}
+}
+
 // Write exports stats in the given format to w.
 func Write(w io.Writer, stats []model.JobStats, format Format) error {
 	switch format {
