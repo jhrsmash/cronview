@@ -3,112 +3,66 @@ package render
 import (
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/user/cronview/internal/model"
 )
 
-// LiveOptions controls the behaviour of the live/auto-refresh view.
-type LiveOptions struct {
-	// RefreshRate is how often the dashboard refreshes.
-	RefreshRate time.Duration
-	// Width is the terminal column width used for rendering.
-	Width int
-	// ShowSparkline controls whether the per-job sparkline row is rendered.
-	ShowSparkline bool
-	// ShowHistogram controls whether the failure histogram block is rendered.
-	ShowHistogram bool
+// LiveOptions configures the live dashboard frame renderer.
+type DefaultLiveOptions struct{}
+
+// LiveFrameOptions controls what is shown in a live dashboard frame.
+type LiveFrameOptions struct {
+	Width       int
+	PageSize    int
+	ShowSpark   bool
+	ShowAlerts  bool
+	ShowStatus  bool
+	CurrentPage int
+	Filter      string
 }
 
-// DefaultLiveOptions returns sensible defaults for the live view.
-func DefaultLiveOptions() LiveOptions {
-	return LiveOptions{
-		RefreshRate:   5 * time.Second,
-		Width:         120,
-		ShowSparkline: true,
-		ShowHistogram: false,
+// DefaultLiveFrameOptions returns sensible defaults for a live frame.
+func DefaultLiveOptions() LiveFrameOptions {
+	return LiveFrameOptions{
+		Width:       100,
+		PageSize:    20,
+		ShowSpark:   true,
+		ShowAlerts:  true,
+		ShowStatus:  true,
+		CurrentPage: 1,
 	}
 }
 
-// LiveFrame holds all data required to render a single refresh frame.
-type LiveFrame struct {
-	Stats     []model.JobStats
-	Summary   model.SummaryStats
-	Page      int
-	PageSize  int
-	RenderedAt time.Time
-}
+// RenderLiveFrame writes a complete terminal dashboard frame to w.
+func RenderLiveFrame(w io.Writer, stats []model.JobStats, opts LiveFrameOptions) {
+	total := len(stats)
+	tpages := TotalPages(total, opts.PageSize)
+	page := clamp(opts.CurrentPage, 1, max(1, tpages))
 
-// RenderLiveFrame writes a complete dashboard frame to w.
-// It clears the previous content by printing ANSI escape codes so the output
-// appears to update in-place when written to a real terminal.
-func RenderLiveFrame(w io.Writer, frame LiveFrame, opts LiveOptions) error {
-	// Move cursor to top-left and clear screen.
-	fmt.Fprint(w, "\033[H\033[2J")
+	visible := PageSlice(stats, page, opts.PageSize)
 
-	// ── Header bar ──────────────────────────────────────────────────────────
-	header := fmt.Sprintf(" cronview  │  %s  │  refresh every %s",
-		frame.RenderedAt.Format("2006-01-02 15:04:05"),
-		opts.RefreshRate,
-	)
-	fmt.Fprintln(w, header)
-	fmt.Fprintln(w, strings.Repeat("─", clamp(opts.Width, 40, 240)))
+	fmt.Fprintln(w, "╔═ cronview ═══════════════════════════════════════════════════════╗")
 
-	// ── Summary block ───────────────────────────────────────────────────────
-	if err := RenderSummary(w, frame.Summary); err != nil {
-		return fmt.Errorf("live frame summary: %w", err)
-	}
-	fmt.Fprintln(w)
+	RenderJobTable(w, visible)
 
-	// ── Job table (paginated) ────────────────────────────────────────────────
-	pageSize := frame.PageSize
-	if pageSize <= 0 {
-		pageSize = DefaultPageOptions().PageSize
-	}
-	slice := PageSlice(frame.Stats, frame.Page, pageSize)
-	if err := RenderJobTable(w, slice); err != nil {
-		return fmt.Errorf("live frame table: %w", err)
-	}
-
-	// ── Pagination bar ───────────────────────────────────────────────────────
-	total := TotalPages(len(frame.Stats), pageSize)
-	fmt.Fprintln(w, RenderPaginationBar(frame.Page, total))
-
-	// ── Optional sparkline ───────────────────────────────────────────────────
-	if opts.ShowSparkline && len(frame.Stats) > 0 {
-		fmt.Fprintln(w)
-		sparkOpts := DefaultSparklineOptions()
-		// Collect all entries from the current page for the sparkline.
-		var entries []model.LogEntry
-		for _, s := range slice {
-			entries = append(entries, s.Entries...)
+	if opts.ShowStatus {
+		barData := StatusBarData{
+			TotalJobs:    total,
+			FilteredJobs: len(visible),
+			ActiveFilter: opts.Filter,
+			LastRefresh:  time.Now(),
+			Page:         page,
+			TotalPages:   tpages,
 		}
-		line := RenderSparkline(entries, sparkOpts)
-		fmt.Fprintf(w, " trend: %s\n", line)
+		barOpts := DefaultStatusBarOptions()
+		barOpts.Width = opts.Width
+		RenderStatusBar(w, barData, barOpts)
 	}
 
-	// ── Optional histogram ───────────────────────────────────────────────────
-	if opts.ShowHistogram && len(frame.Stats) > 0 {
-		fmt.Fprintln(w)
-		histOpts := DefaultHistogramOptions()
-		var entries []model.LogEntry
-		for _, s := range slice {
-			entries = append(entries, s.Entries...)
-		}
-		if err := RenderHistogram(w, entries, histOpts); err != nil {
-			return fmt.Errorf("live frame histogram: %w", err)
-		}
-	}
-
-	// ── Footer ───────────────────────────────────────────────────────────────
-	fmt.Fprintln(w, strings.Repeat("─", clamp(opts.Width, 40, 240)))
-	fmt.Fprintln(w, " q quit  ←/→ page  s sparkline  h histogram")
-
-	return nil
+	fmt.Fprintln(w, "╚══════════════════════════════════════════════════════════════════╝")
 }
 
-// clamp returns v constrained to [lo, hi].
 func clamp(v, lo, hi int) int {
 	if v < lo {
 		return lo
@@ -117,4 +71,11 @@ func clamp(v, lo, hi int) int {
 		return hi
 	}
 	return v
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
